@@ -8,11 +8,12 @@ To populate the ``data/`` folder with the necessary data, run:
 
 ### Setup
 
+For demonstration purposes, we will make use of the [Gisette](https://archive.ics.uci.edu/ml/datasets/Gisette) dataset. 
+Simply run*:
+
 ```shell
 sh datasets.sh
 ```
-
-**note**: this will probably not work on Windows - make necessary alterations depending on your OS.
 
 You should end up with - at least - the following data files:
 
@@ -31,3 +32,7 @@ python cli.py --help
 ```
 
 will guide you through the available options.
+
+---
+
+*command ``sh datasets.sh`` will probably not work on Windows - make necessary alterations depending on your OS.

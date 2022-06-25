@@ -51,7 +51,26 @@ From within the shell, the following:
 python cli.py --help
 ```
 
-will guide you through the available options.
+will guide you through the available options:
+
+```shell
+Usage: cli.py [OPTIONS] COMMAND [ARGS]...
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  fit   Perform a simple training of the SMO-based classifier, given a C.
+  tune  Perform a hyperparameter tuning of the SMO-based classifier.
+```
+
+So, for example:
+
+```
+python cli.py tune
+```
+
+will perform a hyperparameter tuning of the SMO-based SVM classifier.
 
 ### Citation
 

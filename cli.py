@@ -19,7 +19,7 @@ def cli():
     "The strength of the regularization is inversely proportional to C - defaults to 1.0",
 )
 def fit(c):
-    """Perform a simple training of the SMO-based classifier, given a C value."""
+    """Perform a simple training of the SMO-based classifier, given a C."""
     if utils.dir_is_empty("data/"):
         click.echo(
             "[warning] 'data/' folder does not contain any data - consider running `sh datasets.sh` first."
@@ -30,7 +30,7 @@ def fit(c):
     x, y = utils.load_training_data()
 
     click.echo("- splitting into training, testing, development.")
-    X_train, _, y_train, _ = train_test_split(x, y, test_size=0.2, random_state=SEED)
+    X_train, _, y_train, _ = train_test_split(x, y, test_size=0.18, random_state=SEED)
 
     click.echo(f"- shape of training design matrix: {X_train.shape}")
     click.echo(f"- shape of training labels: {y_train.shape}")
@@ -39,8 +39,8 @@ def fit(c):
     smo = optimizer.SMO(C=c)
     _, b, w = smo.fit(X_train, y_train)
 
-    click.echo(f"b: {b}")
-    click.echo(f"w: {w}")
+    click.echo(f"- b: {b}")
+    click.echo(f"- w: {w}")
 
 
 @cli.command()
@@ -57,7 +57,7 @@ def tune():
 
     click.echo("- splitting into training, testing, development.")
     X_train, X_dev, y_train, y_dev = train_test_split(
-        x, y, test_size=0.2, random_state=SEED
+        x, y, test_size=0.18, random_state=SEED
     )
 
     click.echo(f"- shape of training design matrix: {X_train.shape}")

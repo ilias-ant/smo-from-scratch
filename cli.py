@@ -12,8 +12,14 @@ def cli():
 
 
 @cli.command()
-def fit():
-    """Training action."""
+@click.option(
+    "--C",
+    default=1.0,
+    help="Regularization parameter. "
+    "The strength of the regularization is inversely proportional to C - defaults to 1.0",
+)
+def fit(c):
+    """Perform a simple training of the SMO-based classifier, given a C value."""
     if utils.dir_is_empty("data/"):
         click.echo(
             "[warning] 'data/' folder does not contain any data - consider running `sh datasets.sh` first."
@@ -23,17 +29,17 @@ def fit():
     click.echo("- loading dataset...")
     x, y = utils.manual_load_training_data()
 
+    click.echo("- splitting into training, testing, development.")
     X_train, _, y_train, _ = train_test_split(x, y, test_size=0.2, random_state=SEED)
     X_train, _, y_train, _ = train_test_split(
         X_train, y_train, test_size=0.375, random_state=SEED
     )
 
-    click.echo(f"- shape of design matrix: {X_train.shape}")
-    click.echo(f"- shape of labels: {y_train.shape}")
+    click.echo(f"- shape of training design matrix: {X_train.shape}")
+    click.echo(f"- shape of training labels: {y_train.shape}")
 
-    C = 0.5
-    click.echo(f"- using C: {C}")
-    smo = optimizer.SMO(C=C)
+    print(f"- training SMO-based classifier for C={c} (may take a while ...)")
+    smo = optimizer.SMO(C=c)
     alpha, b, w = smo.fit(X_train, y_train)
 
     print(f"alpha: {alpha}")
@@ -43,7 +49,7 @@ def fit():
 
 @cli.command()
 def tune():
-    """Tuning action."""
+    """Perform a hyperparameter tuning of the SMO-based classifier."""
     if utils.dir_is_empty("data/"):
         click.echo(
             "[warning] 'data/' folder does not contain any data - consider running `sh datasets.sh` first."
@@ -53,12 +59,22 @@ def tune():
     click.echo("- loading dataset...")
     x, y = utils.manual_load_training_data()
 
+    click.echo("- splitting into training, testing, development.")
     X_train, X_test, y_train, y_test = train_test_split(
         x, y, test_size=0.2, random_state=SEED
     )
     X_train, X_dev, y_train, y_dev = train_test_split(
         X_train, y_train, test_size=0.375, random_state=SEED
     )
+
+    click.echo(f"- shape of training design matrix: {X_train.shape}")
+    click.echo(f"- shape of training labels: {y_train.shape}")
+
+    click.echo(f"- shape of testing design matrix: {X_test.shape}")
+    click.echo(f"- shape of testing labels: {y_test.shape}")
+
+    click.echo(f"- shape of development design matrix: {X_dev.shape}")
+    click.echo(f"- shape of development labels: {y_dev.shape}")
 
     t = tuner.Tuner(C_range=[0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10])
     t.perform(train_data=(X_train, y_train), validation_data=(X_dev, y_dev))

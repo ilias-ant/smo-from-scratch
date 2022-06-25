@@ -1,5 +1,5 @@
-import random
-from typing import Callable, Union
+from copy import deepcopy
+from typing import Callable
 
 import numpy as np
 
@@ -16,84 +16,237 @@ class SMO(object):
         C: float = 1.0,
         kernel: str = "linear",
         tol: float = 1e-3,
-        max_iter: int = 10000,
     ):
 
         self.C = C
         self.kernel = kernel
         self.kernel_func = self._get_kernel_func(kernel)
         self.tol = tol
-        self.max_iter = max_iter
+        self.alphas = None  # lagrange multipliers
+        self.E = None
         self.w = None
         self.b = None
 
-    def fit(self, X, y) -> Union[tuple, None]:
+    def fit(self, X, y) -> tuple:
+        """
+        Implements the training algorithm.
 
+        Args:
+            X ((n, m)-shaped array): design matrix
+            y ((n,)-shaped array): labels
+
+        Returns:
+            A tuple containing:
+                - the Lagrange multipliers
+                - the intercept
+                - the weights
+        """
         n, d = X.shape
-        alpha = np.zeros((n,))
 
-        count = 0
-        while True:
-            count += 1
-            alpha_prev = np.copy(alpha)
-            for j in range(0, n):
-                i = self.get_random_int(0, n - 1, j)
-                x_i, x_j, y_i, y_j = X[i, :], X[j, :], y[i], y[j]
-                # the second derivative of the objective function along the diagonal line can be expressed as
-                k_ij = (
-                    self.kernel_func(x_i, x_i)
-                    + self.kernel_func(x_j, x_j)
-                    - 2 * self.kernel_func(x_i, x_j)
-                )
-                if k_ij == 0:
-                    continue
-                alpha_prime_j, alpha_prime_i = alpha[j], alpha[i]
-                L = self.compute_L(alpha_prime_j, alpha_prime_i, y_j, y_i)
-                H = self.compute_H(alpha_prime_j, alpha_prime_i, y_j, y_i)
-                # Compute model parameters
-                self.w = self.calc_w(alpha, y, X)
-                self.b = self.calc_b(X, y, self.w)
+        # initialize shared parameters
+        self.w = np.zeros((d,))
+        self.b = 0.0
+        self.E = -deepcopy(y)  # E = u - y, but u = 0 in the initial iteration
+        self.alphas = np.zeros((n,))
 
-                E_i = self.E(
-                    x_i, y_i, self.w, self.b
-                )  # error on the i-th training example
-                E_j = self.E(
-                    x_j, y_j, self.w, self.b
-                )  # error on the j-th training example
+        kernel_matrix = self.kernel_func(X, X)
 
-                # under normal circumstances, the objective function will be positive definite thus there will be a
-                # minimum along the direction of the linear equality constraint, and η will be greater than zero. In
-                # this case, SMO computes the minimum along the direction of the constraint.
-                alpha[j] = alpha_prime_j + float(y_j * (E_i - E_j)) / k_ij
+        num_changed = 0
+        examine_all = 1
+        while num_changed > 0 or examine_all == 1:
+            num_changed = 0
 
-                # the constrained minimum is found by clipping the unconstrained minimum to the ends of the line segment
-                alpha[j] = max(alpha[j], L)
-                alpha[j] = min(alpha[j], H)
+            if examine_all == 1:
+                for i in range(n):  # loop over all training examples
+                    num_changed += self.examine_example(i, X, y, kernel_matrix)
 
-                # the value of a1 is computed from the new, clipped a2
-                alpha[i] = alpha_prime_i + y_i * y_j * (alpha_prime_j - alpha[j])
+            else:  # loop over all non-zeros and non-C alphas
+                for i in (
+                    np.where(self.alphas != 0) and np.where(self.alphas != self.C)
+                )[0]:
+                    num_changed += self.examine_example(i, X, y, kernel_matrix)
 
-            # check for convergence
-            if np.linalg.norm(alpha - alpha_prev) < self.tol:
-                break
+            if examine_all == 1:
+                examine_all = 0
 
-            if count >= self.max_iter:
-                print(
-                    f"Iteration number exceeded the max of {self.max_iter} iterations"
-                )
-                return
+            elif num_changed == 0:
+                examine_all = 1
 
-            # compute final model parameters
-            self.b = self.calc_b(X, y, self.w)
+        return self.alphas, self.b, self.w
 
-            if self.kernel == "linear":
-                self.w = self.calc_w(alpha, y, X)
+    def examine_example(
+        self, i2: int, X: np.array, y: np.array, kernel_matrix: np.array
+    ) -> int:
+        """Choose the second alpha to optimize according to the second choice heuristic."""
+        y_2 = y[i2]
+        alpha_2 = self.alphas[i2]
+        E_2 = self.E[i2]
+        r_2 = E_2 * y_2
+
+        # find positions of non-bound examples
+        non_bound = np.where(self.alphas != 0) and np.where(self.alphas != self.C)
+        # if error is within tolerance
+        if (r_2 < -self.tol and alpha_2 < self.C) or (r_2 > self.tol and alpha_2 > 0):
+            # if number of non-zero and non-C alpha is greater than 1
+            # use second choice heuristic
+            if len(non_bound[0]) > 1:
+                if E_2 > 0:
+                    # choose minimum error if E2 is positive
+                    i1 = np.argmin(self.E)
+                elif E_2 < 0:
+                    # choose maximum error if E2 is negative
+                    i1 = np.argmax(self.E)
+
+                if self.take_step(i1, i2, X, y, kernel_matrix):
+                    return 1
+
+            # loop over all non-zero and non-C alpha starting at a random point
+            random_index = non_bound[0]
+            random_index = random_index[np.random.permutation(len(random_index))]
+            for i in random_index:
+                # choose identity of current alpha
+                if self.alphas[i] == self.alphas[i2]:
+                    i1 = i
+                    if self.take_step(i1, i2, X, y, kernel_matrix):
+                        return 1
+            # loop over all possible indices starting at a random point
+            temp = np.arange(0, len(self.alphas))
+            temp = temp[np.random.permutation(len(temp))]
+            for i in temp:
+                # loop variable
+                i1 = i
+                if self.take_step(i1, i2, X, y, kernel_matrix):
+                    return 1
+        return 0
+
+    def take_step(
+        self, i1: int, i2: int, X: np.array, y: np.array, kernel_matrix: np.array
+    ) -> bool:
+        """Updates threshold, weight vector (if kernel is linear), error cache, alphas."""
+        # if alphas are the same return 0
+        if i1 == i2:
+            return False
+
+        # get label, lagrange multiplier and error for elements in position i1, i2
+        alpha1, alpha2 = self.alphas[i1], self.alphas[i2]
+        y1, y2 = y[i1], y[i2]
+        E1, E2 = self.E[i1], self.E[i2]
+
+        s = y1 * y2
+
+        # compute L, H depending on the values of the labels y1, y2
+        if y1 != y2:
+            L = max(0, alpha2 - alpha1)
+            H = min(self.C, self.C + alpha2 - alpha1)
+        else:
+            L = max(0, alpha2 + alpha1 - self.C)
+            H = min(self.C, alpha2 + alpha1)
+
+        if L == H:
+            return False
+
+        # the second derivative of the objective function along the diagonal line can be expressed as
+        k11 = kernel_matrix[i1, i1]
+        k12 = kernel_matrix[i1, i2]
+        k22 = kernel_matrix[i2, i2]
+        eta = k11 + k22 - 2 * k12
+        # if the second derivative is positive, update alpha2
+        # using the following formula
+        if eta > 0:
+            a2 = alpha2 + y2 * (E1 - E2) / eta
+            # clip a2 according to bounds
+            if a2 < L:
+                a2 = L
+            elif a2 > H:
+                a2 = H
+        else:
+            # evaluate the objective function at each end of the line
+            # segment
+            f1 = y1 * (E1 + self.b) - alpha1 * k11 - s * alpha2 * k12
+            f2 = y2 * (E2 + self.b) - s * alpha1 * k12 - alpha2 * k22
+            L1 = alpha1 + s * (alpha2 - L)
+            H1 = alpha1 + s * (alpha2 - H)
+            # objective function at a2 = L
+            obj_L = (
+                L1 * f1
+                + L * f2
+                + (1 / 2) * (L1**2) * k11
+                + (1 / 2) * (L**2) * k22
+                + s * L * L1 * k12
+            )
+            # objective function at a2 = H
+            obj_H = (
+                H1 * f1
+                + H * f2
+                + (1 / 2) * (H1**2) * k11
+                + (1 / 2) * (H**2) * k22
+                + s * H * H1 * k12
+            )
+            if obj_L < (obj_H - self.tol):
+                a2 = L
+            elif obj_L > (obj_H + self.tol):
+                a2 = H
             else:
-                raise ValueError(
-                    f"Optimizer does not yet support kernel: {self.kernel}"
-                )
+                a2 = alpha2
 
-            return self.b, self.w
+        # if a2 very close to zero or C set a to 0 or C respectively
+        if a2 < (10 ** (-8)):
+            a2 = 0.0
+        elif a2 > self.C - (10**-8):
+            a2 = self.C
+        # if difference between a_new and a_old is negligible return 0
+        if abs(a2 - alpha2) < (self.tol * (a2 + alpha2 + self.tol)):
+            return False
+
+        # compute new alpha1
+        a1 = alpha1 + s * (alpha2 - a2)
+
+        # compute threshold b
+        b1 = E1 + y1 * (a1 - alpha1) * k11 + y2 * (a2 - alpha2) * k12 + self.b
+        b2 = E2 + y1 * (a1 - alpha1) * k12 + y2 * (a2 - alpha2) * k22 + self.b
+
+        # According to Platt's SMO paper 2.3 threshold b is b1 if a1 is not in
+        #  bounds, b2 is when a2 is not at bounds and (b1+b2)/2
+        # when both a1, a2 are at bounds.
+
+        if 0 < a1 < self.C:
+            beta_new = b1
+        elif 0 < a2 < self.C:
+            beta_new = b2
+        else:
+            beta_new = (b1 + b2) / 2
+
+        t1 = y1 * (a1 - alpha1)
+        t2 = y2 * (a2 - alpha2)
+
+        # update weight vector to reflect change in alpha1 and alpha2 if SVM is linear
+        if self.kernel == "linear":
+            self.w = self.w + t1 * X[i1, :] + t2 * X[i2, :]
+
+        delta_b = self.b - beta_new
+
+        # update error cache using new lagrange multipliers
+        for i in range(len(self.E)):
+            self.E[i] = (
+                self.E[i]
+                + t1 * kernel_matrix[i1, i]
+                + t2 * kernel_matrix[i2, i]
+                + delta_b
+            )
+
+        # set error of optimized examples to 0 if new alphas are not at bounds
+        for index in [i1, i2]:
+            if 0.0 < self.alphas[index] < self.C:
+                self.E[index] = 0.0
+
+        # update threshold to reflect change in lagrange multipliers
+        self.b = beta_new
+        # store a1 in the alpha array
+        self.alphas[i1] = a1
+        # store a2 in the alpha array
+        self.alphas[i2] = a2
+
+        return True
 
     def _get_kernel_func(self, kernel: str) -> Callable:
 
@@ -106,44 +259,3 @@ class SMO(object):
     @staticmethod
     def linear_kernel(x1, x2):
         return np.dot(x1, x2.T)
-
-    @staticmethod
-    def get_random_int(a: int, b: int, z: int) -> int:
-        i = z
-        cnt = 0
-        while i == z and cnt < 1000:
-            i = random.randint(a, b)
-            cnt = cnt + 1
-        return i
-
-    def E(self, x_k, y_k, w, b) -> int:
-        return self.h(x_k, w, b) - y_k
-
-    @staticmethod
-    def h(X, w, b) -> int:
-        return np.sign(np.dot(w.T, X.T) + b).astype(int)
-
-    def compute_L(self, alpha_prime_j, alpha_prime_i, y_j, y_i) -> float:
-        """Computes lower bound for Lagrange multiplier `alpha_prime_j`."""
-        return (
-            max(0, alpha_prime_j - alpha_prime_i)
-            if (y_i != y_j)
-            else max(0, alpha_prime_j + alpha_prime_i - self.C)
-        )
-
-    def compute_H(self, alpha_prime_j, alpha_prime_i, y_j, y_i) -> float:
-        """Computes upper bound for Lagrange multiplier `alpha_prime_j`."""
-        return (
-            min(self.C, self.C + alpha_prime_j - alpha_prime_i)
-            if (y_i != y_j)
-            else min(self.C, alpha_prime_i + alpha_prime_j)
-        )
-
-    @staticmethod
-    def calc_b(X, y, w):
-        b_tmp = y - np.dot(w.T, X.T)
-        return np.mean(b_tmp)
-
-    @staticmethod
-    def calc_w(alpha, y, X):
-        return np.dot(X.T, np.multiply(alpha, y))

@@ -1,6 +1,6 @@
 import os
 
-from sklearn.datasets import load_svmlight_file
+import numpy as np
 
 
 def dir_is_empty(dirpath: str, exclude_dotfiles: bool = True) -> bool:
@@ -13,15 +13,34 @@ def dir_is_empty(dirpath: str, exclude_dotfiles: bool = True) -> bool:
     return len(contents) == 0
 
 
-def load_training_data() -> tuple:
+def manual_load_training_data(max_lines: int = 5500) -> tuple:
 
-    x, y = load_svmlight_file(os.path.join(os.getcwd(), "data/gisette_train.txt"))
+    x, y, temp = [], [], []
+    # open the file and store the lines
+    with open(
+        os.path.join(os.getcwd(), "data/gisette_scale"), "r", encoding="utf-8"
+    ) as infile:
+        lines = infile.read().split("\n")
 
-    return x, y
+    if max_lines is None or max_lines > len(lines):
+        max_lines = len(lines)
 
+    for line in lines[:max_lines]:
 
-def load_testing_data() -> tuple:
+        if len(line):
+            # split each line on the whitespace char
+            observation = line.strip().split(" ")
+            features = observation[1:]
+            for feature in features:
+                # store the features of each observation
+                temp.append(float(feature.strip().split(":")[1]))
+            if (len(temp)) != 4955:
+                temp = []
+                continue
+            # append the features of the current observation
+            x.append(temp)
+            # append the class of the current observation
+            y.append(float(observation[0]))
+            temp = []
 
-    x, y = load_svmlight_file(os.path.join(os.getcwd(), "data/gisette_test.txt"))
-
-    return x, y
+    return np.asmatrix(x), np.asarray(y)

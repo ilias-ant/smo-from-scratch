@@ -16,14 +16,12 @@ Simply run*:
 sh datasets.sh
 ```
 
-You should end up with - at least - the following data files:
+You should end up with the following data files:
 
 ```shell
 data/
     gisette_scale  # extracted from gisette_scale.bz2
     gisette_scale.t  # extracted from gisette_scale.t.bz2
-    gisette_train.txt  # symbolic link to gisette_scale
-    gisette_test.txt  # symbolic link to gisette_scale
 ```
 
 To enable reproducibility, [Poetry](https://python-poetry.org/) has been used as a dependency manager.

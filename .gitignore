@@ -139,3 +139,6 @@ dmypy.json
 cython_debug/
 
 .idea
+
+estimated_b.txt
+estimated_w.txt

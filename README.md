@@ -20,7 +20,6 @@ You should end up with the following data files:
 ```shell
 data/
     gisette_scale  # extracted from gisette_scale.bz2
-    gisette_scale.t  # extracted from gisette_scale.t.bz2
 ```
 
 To enable reproducibility, [Poetry](https://python-poetry.org/) has been used as a dependency manager.
@@ -67,10 +66,10 @@ Commands:
 So, for example:
 
 ```
-python cli.py tune
+python cli.py fit --C=0.01
 ```
 
-will perform a hyperparameter tuning of the SMO-based SVM classifier.
+will train an SMO-based classifier with `C = 0.01`.
 
 ### Citation
 
@@ -89,4 +88,4 @@ number = {MSR-TR-98-14},
 
 ---
 
-*command ``sh datasets.sh`` will probably not work on Windows - make necessary alterations depending on your OS.
+*command ``sh datasets.sh`` works only on Linux-based systems - make necessary alterations depending on your OS.

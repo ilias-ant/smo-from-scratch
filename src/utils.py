@@ -13,13 +13,11 @@ def dir_is_empty(dirpath: str, exclude_dotfiles: bool = True) -> bool:
     return len(contents) == 0
 
 
-def load_training_data(max_lines: int = 5500) -> tuple:
+def load_data(filepath: str, max_lines: int = 6000) -> tuple:
 
     x, y, temp = [], [], []
     # open the file and store the lines
-    with open(
-        os.path.join(os.getcwd(), "data/gisette_scale"), "r", encoding="utf-8"
-    ) as infile:
+    with open(os.path.join(os.getcwd(), filepath), "r", encoding="utf-8") as infile:
         lines = infile.read().split("\n")
 
     if max_lines is None or max_lines > len(lines):
@@ -46,34 +44,14 @@ def load_training_data(max_lines: int = 5500) -> tuple:
     return np.asmatrix(x), np.asarray(y)
 
 
-def load_testing_data(max_lines: int = 5500) -> tuple:
+def write_to_file(b: float, w: np.array) -> None:
 
-    x, y, temp = [], [], []
-    # open the file and store the lines
-    with open(
-        os.path.join(os.getcwd(), "data/gisette_scale.t"), "r", encoding="utf-8"
-    ) as infile:
-        lines = infile.read().split("\n")
+    with open(os.path.join(os.getcwd(), "estimated_b.txt"), "w") as f:
 
-    if max_lines is None or max_lines > len(lines):
-        max_lines = len(lines)
+        f.write(f"b: {b}\n")
 
-    for line in lines[:max_lines]:
+    with open(os.path.join(os.getcwd(), "estimated_w.txt"), "w") as f:
 
-        if len(line):
-            # split each line on the whitespace char
-            observation = line.strip().split(" ")
-            features = observation[1:]
-            for feature in features:
-                # store the features of each observation
-                temp.append(float(feature.strip().split(":")[1]))
-            if (len(temp)) != 4955:
-                temp = []
-                continue
-            # append the features of the current observation
-            x.append(temp)
-            # append the class of the current observation
-            y.append(float(observation[0]))
-            temp = []
-
-    return np.asmatrix(x), np.asarray(y)
+        f.write("w:\n")
+        for w_i in w:
+            np.savetxt(f, w_i)

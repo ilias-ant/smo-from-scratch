@@ -6,9 +6,21 @@ import numpy as np
 
 class SMO(object):
     """
-    Support Vector Machine that uses the
-    Sequential Minimal Optimization (SMO)
-    algorithm for training.
+    Support Vector Machine that uses the Sequential Minimal Optimization (SMO) algorithm for training.
+
+    **Note**: Any attributes or methods prefixed with _underscores are forming a so called "private" API, and is
+    for internal use only.
+
+    Example:
+
+        >>> from src import optimizer
+        >>>
+        >>> X_train, y_train = ...
+        >>> X_test, y_test = ...
+        >>>
+        >>> opt = optimizer.SMO(C=1.0)
+        >>> opt.fit(X_train, y_train)
+        >>> opt.predict(X_test)
     """
 
     def __init__(
@@ -23,7 +35,7 @@ class SMO(object):
         self.kernel_func = self._get_kernel_func(kernel)
         self.tol = tol
         self.alphas = None  # lagrange multipliers
-        self.E = None
+        self.E = None  # error cache
         self.w = None
         self.b = None
 
@@ -37,7 +49,6 @@ class SMO(object):
 
         Returns:
             A tuple containing:
-                - the Lagrange multipliers
                 - the intercept
                 - the weights
         """
@@ -58,13 +69,13 @@ class SMO(object):
 
             if examine_all == 1:
                 for i in range(n):  # loop over all training examples
-                    num_changed += self.examine_example(i, X, y, kernel_matrix)
+                    num_changed += self._examine_example(i, X, y, kernel_matrix)
 
             else:  # loop over all non-zeros and non-C alphas
                 for i in (
                     np.where(self.alphas != 0) and np.where(self.alphas != self.C)
                 )[0]:
-                    num_changed += self.examine_example(i, X, y, kernel_matrix)
+                    num_changed += self._examine_example(i, X, y, kernel_matrix)
 
             if examine_all == 1:
                 examine_all = 0
@@ -72,9 +83,21 @@ class SMO(object):
             elif num_changed == 0:
                 examine_all = 1
 
-        return self.alphas, self.b, self.w
+        return self.b, self.w
 
-    def examine_example(
+    def predict(self, X) -> np.array:
+        """
+        Predicts based on unseen examples.
+
+        Args:
+            X ((n, m)-shaped array): design matrix
+
+        Returns:
+            an array with {-1.0, +1.0} predictions
+        """
+        return self._h(X, self.w, self.b)
+
+    def _examine_example(
         self, i2: int, X: np.array, y: np.array, kernel_matrix: np.array
     ) -> int:
         """Choose the second alpha to optimize according to the second choice heuristic."""
@@ -87,8 +110,7 @@ class SMO(object):
         non_bound = np.where(self.alphas != 0) and np.where(self.alphas != self.C)
         # if error is within tolerance
         if (r_2 < -self.tol and alpha_2 < self.C) or (r_2 > self.tol and alpha_2 > 0):
-            # if number of non-zero and non-C alpha is greater than 1
-            # use second choice heuristic
+            # if number of non-zero and non-C alpha is greater than 1, use second choice heuristic
             if len(non_bound[0]) > 1:
                 if E_2 > 0:
                     # choose minimum error if E2 is positive
@@ -97,7 +119,7 @@ class SMO(object):
                     # choose maximum error if E2 is negative
                     i1 = np.argmax(self.E)
 
-                if self.take_step(i1, i2, X, y, kernel_matrix):
+                if self._take_step(i1, i2, X, y, kernel_matrix):
                     return 1
 
             # loop over all non-zero and non-C alpha starting at a random point
@@ -107,23 +129,21 @@ class SMO(object):
                 # choose identity of current alpha
                 if self.alphas[i] == self.alphas[i2]:
                     i1 = i
-                    if self.take_step(i1, i2, X, y, kernel_matrix):
+                    if self._take_step(i1, i2, X, y, kernel_matrix):
                         return 1
             # loop over all possible indices starting at a random point
             temp = np.arange(0, len(self.alphas))
             temp = temp[np.random.permutation(len(temp))]
             for i in temp:
-                # loop variable
                 i1 = i
-                if self.take_step(i1, i2, X, y, kernel_matrix):
+                if self._take_step(i1, i2, X, y, kernel_matrix):
                     return 1
         return 0
 
-    def take_step(
+    def _take_step(
         self, i1: int, i2: int, X: np.array, y: np.array, kernel_matrix: np.array
     ) -> bool:
         """Updates threshold, weight vector (if kernel is linear), error cache, alphas."""
-        # if alphas are the same return 0
         if i1 == i2:
             return False
 
@@ -151,7 +171,6 @@ class SMO(object):
         k22 = kernel_matrix[i2, i2]
         eta = k11 + k22 - 2 * k12
         # if the second derivative is positive, update alpha2
-        # using the following formula
         if eta > 0:
             a2 = alpha2 + y2 * (E1 - E2) / eta
             # clip a2 according to bounds
@@ -160,8 +179,7 @@ class SMO(object):
             elif a2 > H:
                 a2 = H
         else:
-            # evaluate the objective function at each end of the line
-            # segment
+            # evaluate the objective function at each end of the line segment
             f1 = y1 * (E1 + self.b) - alpha1 * k11 - s * alpha2 * k12
             f2 = y2 * (E2 + self.b) - s * alpha1 * k12 - alpha2 * k22
             L1 = alpha1 + s * (alpha2 - L)
@@ -205,10 +223,8 @@ class SMO(object):
         b1 = E1 + y1 * (a1 - alpha1) * k11 + y2 * (a2 - alpha2) * k12 + self.b
         b2 = E2 + y1 * (a1 - alpha1) * k12 + y2 * (a2 - alpha2) * k22 + self.b
 
-        # According to Platt's SMO paper 2.3 threshold b is b1 if a1 is not in
-        #  bounds, b2 is when a2 is not at bounds and (b1+b2)/2
-        # when both a1, a2 are at bounds.
-
+        # threshold b is b1 if a1 is not in bounds, b2 is when a2 is not at bounds and
+        # (b1+b2)/2 when both a1, a2 are at bounds.
         if 0 < a1 < self.C:
             beta_new = b1
         elif 0 < a2 < self.C:
@@ -251,11 +267,15 @@ class SMO(object):
     def _get_kernel_func(self, kernel: str) -> Callable:
 
         kernel_mapping = {
-            "linear": self.linear_kernel,
+            "linear": self._linear_kernel,
         }
 
         return kernel_mapping[kernel]
 
     @staticmethod
-    def linear_kernel(x1, x2):
+    def _linear_kernel(x1, x2):
         return np.dot(x1, x2.T)
+
+    @staticmethod
+    def _h(X, w, b) -> np.array:
+        return np.sign(np.dot(w, X.T) - b).astype(int)

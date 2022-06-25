@@ -5,12 +5,11 @@
 
 Implementing Sequential Minimal Optimization algorithm from [John C. Platt's 1998 paper](https://www.microsoft.com/en-us/research/publication/sequential-minimal-optimization-a-fast-algorithm-for-training-support-vector-machines/).
 
-To populate the ``data/`` folder with the necessary data, run:
-
 ### Setup
 
-For demonstration purposes, we will make use of the [Gisette](https://archive.ics.uci.edu/ml/datasets/Gisette) dataset. 
-Simply run*:
+For demonstration purposes, we will make use of the [Gisette](https://archive.ics.uci.edu/ml/datasets/Gisette) dataset.
+
+To populate the ``data/`` folder with the necessary data, simply run*:
 
 ```shell
 sh datasets.sh

@@ -27,24 +27,20 @@ def fit(c):
         return
 
     click.echo("- loading dataset...")
-    x, y = utils.manual_load_training_data()
+    x, y = utils.load_training_data()
 
     click.echo("- splitting into training, testing, development.")
     X_train, _, y_train, _ = train_test_split(x, y, test_size=0.2, random_state=SEED)
-    X_train, _, y_train, _ = train_test_split(
-        X_train, y_train, test_size=0.375, random_state=SEED
-    )
 
     click.echo(f"- shape of training design matrix: {X_train.shape}")
     click.echo(f"- shape of training labels: {y_train.shape}")
 
     print(f"- training SMO-based classifier for C={c} (may take a while ...)")
     smo = optimizer.SMO(C=c)
-    alpha, b, w = smo.fit(X_train, y_train)
+    _, b, w = smo.fit(X_train, y_train)
 
-    print(f"alpha: {alpha}")
-    print(f"b: {b}")
-    print(f"w: {w}")
+    click.echo(f"b: {b}")
+    click.echo(f"w: {w}")
 
 
 @cli.command()
@@ -57,21 +53,15 @@ def tune():
         return
 
     click.echo("- loading dataset...")
-    x, y = utils.manual_load_training_data()
+    x, y = utils.load_training_data()
 
     click.echo("- splitting into training, testing, development.")
-    X_train, X_test, y_train, y_test = train_test_split(
-        x, y, test_size=0.2, random_state=SEED
-    )
     X_train, X_dev, y_train, y_dev = train_test_split(
-        X_train, y_train, test_size=0.375, random_state=SEED
+        x, y, test_size=0.2, random_state=SEED
     )
 
     click.echo(f"- shape of training design matrix: {X_train.shape}")
     click.echo(f"- shape of training labels: {y_train.shape}")
-
-    click.echo(f"- shape of testing design matrix: {X_test.shape}")
-    click.echo(f"- shape of testing labels: {y_test.shape}")
 
     click.echo(f"- shape of development design matrix: {X_dev.shape}")
     click.echo(f"- shape of development labels: {y_dev.shape}")

@@ -6,12 +6,23 @@ from src.optimizer import SMO
 
 
 class Tuner(object):
+    """
+    Custom hyperparameter tuner for the
+    SMO-based SVM classifier.
+    """
+
     def __init__(self, C_range: list):
         self.optimizer = SMO
         self.hparam_space = {"C": C_range, "kernel": "linear", "tol": 1e-3}
 
     def perform(self, train_data: tuple, validation_data: tuple) -> None:
+        """
+        Performs the hyperparameter tuning.
 
+        Args:
+            train_data (tuple): pair of training design matrix and training labels
+            validation_data (tuple): pair of validation design matrix and validation labels
+        """
         x_train, y_train = train_data
         x_dev, y_dev = validation_data
 
@@ -20,6 +31,7 @@ class Tuner(object):
         for C in self.hparam_space["C"]:
 
             print(f"- training SMO-based classifier for C={C} (may take a while ...)")
+
             opt = self.optimizer(
                 C=C, kernel=self.hparam_space["kernel"], tol=self.hparam_space["tol"]
             )

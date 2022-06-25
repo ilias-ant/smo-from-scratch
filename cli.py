@@ -76,7 +76,7 @@ def tune():
     click.echo(f"- shape of development design matrix: {X_dev.shape}")
     click.echo(f"- shape of development labels: {y_dev.shape}")
 
-    t = tuner.Tuner(C_range=[0.00001, 0.0001, 0.001, 0.01, 0.1, 1, 10])
+    t = tuner.Tuner(C_range=[0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000, 10000, 100000])
     t.perform(train_data=(X_train, y_train), validation_data=(X_dev, y_dev))
 
 

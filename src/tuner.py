@@ -15,28 +15,37 @@ class Tuner(object):
         x_train, y_train = train_data
         x_dev, y_dev = validation_data
 
-        for C in self.hparam_space["C"]:
+        accuracy, precision, recall, f1_score = [], [], [], []
 
-            u = []
+        for C in self.hparam_space["C"]:
 
             print(f"- training SMO-based classifier for C={C} (may take a while ...)")
             opt = self.optimizer(
                 C=C, kernel=self.hparam_space["kernel"], tol=self.hparam_space["tol"]
             )
-            alpha, b, w = opt.fit(x_train, y_train)
+            _, b, w = opt.fit(x_train, y_train)
 
+            preds = []
             if self.hparam_space["kernel"] == "linear":
                 for i in range(len(x_dev)):
-                    u.append(np.dot(w, x_dev[i].T) - b)
+                    pred = (np.dot(w, x_dev[i].T) - b).sum()
+                    preds.append(pred)
 
-            df = pd.DataFrame(
-                {
-                    "C": self.hparam_space["C"],
-                    "accuracy": metrics.accuracy_score(u, y_dev),
-                    "precision": metrics.precision_score(u, y_dev),
-                    "recall": metrics.recall_score(u, y_dev),
-                    "f1_score": metrics.f1_score(u, y_dev),
-                }
-            )
+            preds = np.array(preds)
+            y_pred = np.where(preds > 0, 1.0, -1.0)  # map to {-1, 1} depending on sign
+            accuracy.append(metrics.accuracy_score(y_pred, y_dev))
+            precision.append(metrics.precision_score(y_pred, y_dev))
+            recall.append(metrics.recall_score(y_pred, y_dev))
+            f1_score.append(metrics.f1_score(y_pred, y_dev))
 
-            print(df)
+        df = pd.DataFrame(
+            {
+                "C": self.hparam_space["C"],
+                "accuracy": accuracy,
+                "precision": precision,
+                "recall": recall,
+                "f1_score": f1_score,
+            }
+        )
+
+        print(df)
